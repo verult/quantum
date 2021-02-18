@@ -32,13 +32,13 @@ apply-training: apply-common
 	kubectl apply -f training/qcnn.yaml
 
 delete-training:
-	kubectl delete -f common/sa.yaml; kubectl delete -f training/qcnn.yaml
+	kubectl delete -f common/sa.yaml --ignore-not-found; kubectl delete -f training/qcnn.yaml
 
 apply-inference: apply-common
 	kubectl apply -f inference/inference.yaml
 
 delete-inference:
-	kubectl delete -f common/sa.yaml; kubectl delete -f inference/inference.yaml
+	kubectl delete -f common/sa.yaml --ignore-not-found; kubectl delete -f inference/inference.yaml
 
 remove-images:
 	docker rmi $(shell docker images -q ${IMAGE_REGISTRY})
