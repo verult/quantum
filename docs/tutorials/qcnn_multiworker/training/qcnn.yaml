@@ -26,64 +26,42 @@ spec:
       template:
         metadata:
           generateName: qcnn
+          labels:
+            app: qcnn
         spec:
-          serviceAccountName: qcnn-sa
+          serviceAccountName: <service_account>
           containers:
           - name: tensorflow
-            image: "gcr.io/<project>/qcnn"
+            image: <image_registry>
             env:
             - name: PYTHONUNBUFFERED
               value: "TRUE"
-            # - name: profiler-port
-            #   containerPort: 5002
             command:
             - "python"
             - "qcnn.py"
             args:
             - "--weights-gcs-bucket=<bucket_name>"
-            - "--logdir=gs://<bucket_name>/qcnn-logdir"
-            # - "--profiler-port=5002"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: tensorboard-service
-spec:
-  type: LoadBalancer
-  selector:
-    app: qcnn-tensorboard
-  ports:
-  - name: http
-    protocol: TCP
-    port: 5001
-    targetPort: 5001
----
-kind: Deployment
-apiVersion: apps/v1
-metadata:
-  name: qcnn-tensorboard
-  labels:
-    app: qcnn-tensorboard
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: qcnn-tensorboard
-  template:
-    metadata:
-      labels:
-        app: qcnn-tensorboard
-    spec:
-      restartPolicy: Always
-      serviceAccount: qcnn-sa
-      containers:
-      - name: tensorboard
-        image: "gcr.io/<project>/qcnn"
-        ports:
-        - containerPort: 5001
-        command:
-        - "tensorboard"
-        args:
-        - "--logdir=gs://<bucket_name>/qcnn-logdir"
-        - "--port=5001"
-        - "--bind_all"
+            - "--logdir=gs://<bucket_name>/<logdir_name>"
+            - "--profiler-port=2223"
+            ports:
+            - containerPort: 2222
+              name: tfjobs-port
+              protocol: TCP
+            - containerPort: 2223
+              name: profiler-port
+              protocol: TCP
+            # resources:
+            #   requests:
+            #     memory: 800M
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - qcnn
+                  topologyKey: kubernetes.io/hostname

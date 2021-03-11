@@ -17,11 +17,12 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import cirq
 import tensorflow as tf
 import os
-import argparse, datetime
+import argparse
+from datetime import datetime
 from google.cloud import storage
 
 
-strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+strategy = tf.distribute.MultiWorkerMirroredStrategy()
 
 # Must be imported after MultiWorkerMirroredStrategy instantiation
 import tensorflow_quantum as tfq
@@ -41,34 +42,46 @@ def upload_blob(bucket_name, source_file_name, destination_blob_name):
         )
     )
 
+
 def main(args):
-  print("TF_CONFIG:")
-  print(os.environ['TF_CONFIG'])
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=args.logdir,
+                                                          histogram_freq=1,
+                                                          update_freq=1,
+                                                          profile_batch='10, 20')
+    logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    file_writer = tf.summary.create_file_writer(logdir + "/metrics") # TODO is this the right path or is args.logdir needed?
+    file_writer.set_as_default()
 
-  qcnn_model, train_excitations, train_labels, _, _ = qcnn_common.prepare_model(strategy)
-  opt = tf.keras.optimizers.Adam(learning_rate=0.02)
-  qcnn_model.compile(optimizer=opt,
-                     loss=tf.losses.mse,
-                     metrics=['accuracy'])
+    (qcnn_model,
+     train_excitations,
+     train_labels,
+     test_excitations,
+     test_labels) = qcnn_common.prepare_model(strategy)
 
-  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=args.logdir,
-                                                        histogram_freq=1,
-                                                        profile_batch='10,20')
+    opt = tf.keras.optimizers.Adam(learning_rate=0.02)
+    qcnn_model.compile(optimizer=opt,
+                       loss=tf.losses.mse,
+                       metrics=['accuracy'])
 
-  history = qcnn_model.fit(x=train_excitations,
-                           y=train_labels,
-                           batch_size=32,
-                           epochs=50,
-                           verbose=1,
-                           callbacks=[tensorboard_callback])
+    tf.profiler.experimental.server.start(args.profiler_port)
 
-  task_type, task_id = (strategy.cluster_resolver.task_type,
-                        strategy.cluster_resolver.task_id)
-  if task_type == 'worker' and task_id == 0:
-    qcnn_weights_path='/tmp/qcnn_weights.h5'
-    qcnn_model.save_weights(qcnn_weights_path)
-    #ts = str(datetime.datetime.now())
-    upload_blob(args.weights_gcs_bucket, qcnn_weights_path, f'qcnn_weights.h5')
+    # TODO use strategy.cluster_resolver.cluster_spec().num_tasks('worker') in batch size calculation
+    # batch_size = 32 * num_workers
+    history = qcnn_model.fit(x=train_excitations,
+                             y=train_labels,
+                             batch_size=32,
+                             epochs=50,
+                             verbose=1,
+                             validation_data=(test_excitations, test_labels),
+                             callbacks=[tensorboard_callback])
+
+    task_type, task_id = (strategy.cluster_resolver.task_type,
+                          strategy.cluster_resolver.task_id)
+    if task_type == 'worker' and task_id == 0:
+        qcnn_weights_path='/tmp/qcnn_weights.h5'
+        qcnn_model.save_weights(qcnn_weights_path)
+        #ts = str(datetime.now())
+        upload_blob(args.weights_gcs_bucket, qcnn_weights_path, f'qcnn_weights.h5')
 
 
 if __name__ == '__main__':

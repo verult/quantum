@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-IMAGE_REGISTRY=gcr.io/<project>/qcnn
+IMAGE_REGISTRY=<image_registry>
 
 .PHONY: training inference build apply-common apply-training delete-training apply-inference delete-inference remove-images
 

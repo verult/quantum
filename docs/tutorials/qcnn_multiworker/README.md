@@ -7,7 +7,22 @@ The following variables are used in commands below:
 * `${PROJECT}`: your Google Cloud project ID.
 * `${NUM_NODES}`: the number of VMs in your cluster. I used 3 in my experiments, but less should work as well.
 * `${LOCATION}`: Google Cloud location for Google Cloud Storage bucket. This is recommended to be the same default location in your `gcloud` setup, as part of the Google Kubernetes Engine setup procedure.
-* `${BUCKET_NAME}`: Name of the Google Cloud Storage bucket for storing training output. Example: `qcnn-multiworker`.
+* `${BUCKET_NAME}`: Name of the Google Cloud Storage bucket for storing training output. The name must satisfy [Bucket naming requirements](https://cloud.google.com/storage/docs/naming-buckets#requirements). Example: `qcnn-multiworker-your-project-id`.
+
+---
+
+If at any point in the setup below you run into permission issues, check that your user account is assigned a role that includes permissions from the following roles:
+* container.admin
+* iam.serviceAccountAdmin
+* storage.admin
+
+To check your permissions, run:
+
+```
+gcloud projects get-iam-policy ${PROJECT}
+```
+
+and look for your user account. A list of roles can be found [here](https://cloud.google.com/iam/docs/understanding-roles).
 
 ---
 
@@ -29,6 +44,7 @@ The following variables are used in commands below:
 * Google Cloud Storage commands
   * This is for storing training output.
   * Install gsutil: `gcloud components install gsutil`
+    * This is pre-installed if you opted to use Cloud Shell.
   * Create bucket: `gsutil mb -p ${PROJECT} -l ${LOCATION} -b on gs://${BUCKET_NAME}`
 * Give service account Cloud Storage permissions: `gsutil iam ch serviceAccount:qcnn-sa@${PROJECT}.iam.gserviceaccount.com:roles/storage.admin gs://${BUCKET_NAME}`
 * Install `tf-operator` from Kubeflow: `kubectl apply -f https://raw.githubusercontent.com/kubeflow/tf-operator/v1.0.1-rc.1/deploy/v1/tf-operator.yaml`
@@ -61,14 +77,15 @@ The following variables are used in commands below:
     * The IP is under `EXTERNAL-IP`.
     * If the IP is `<pending>`, the load balancer is still being provisioned. Watch the status by running `kubectl get svc tensorboard-service -w`. Eventually the IP should show up.
   * In a browser, go to `<ip>:5001` to access the Tensorboard UI.
+* Training data and log summary data (used by Tensorboard) can be viewed in the [Google Cloud Storage browser](https://console.cloud.google.com/storage/browser)
   
 ## Run Inference
 
 * `make inference`
   * This builds the Docker image, uploads it to the Google Container Registry, and deploys the inference job to your GKE cluster.
 * Check inference pod status: `kubectl get pods`
-  * There should be 1 container: `qcnn-inference-<some_suffix>`.
-* Check inference logs to verify inference results: `kubectl logs -f qcnn-inference-<some_suffix>`.
+  * There should be 1 container: `inference-qcnn-<some_suffix>`.
+* Check inference logs to verify inference results: `kubectl logs -f inference-qcnn-<some_suffix>`.
 
 ## Cleanup
 

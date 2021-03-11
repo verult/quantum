@@ -130,6 +130,23 @@ def create_model_circuit(qubits):
     return model_circuit
 
 
+def multi_readout_model_circuit(qubits):
+    """Make a model circuit with less quantum pool and conv operations."""
+    model_circuit = cirq.Circuit()
+    symbols = sympy.symbols('qconv0:21')
+    model_circuit += quantum_conv_circuit(qubits, symbols[0:15])
+    model_circuit += quantum_pool_circuit(qubits[:4], qubits[4:],
+                                          symbols[15:21])
+    return model_circuit
+
+
+class ReadoutHistogramLayer(tf.keras.layers.Layer):
+    """A custom layer for writing QCNN readout to histogram."""
+    def call(self, readout_input):
+        tf.summary.histogram('Readouts', readout_input, step=5)
+        return readout_input
+
+
 def prepare_model(strategy=None):
     """Executes the QCNN model preparation steps shared between training and
     inference.
@@ -146,25 +163,33 @@ def prepare_model(strategy=None):
 
     # Create our qubits and readout operators in Cirq.
     cluster_state_bits = cirq.GridQubit.rect(1, 8)
-    readout_operators = cirq.Z(cluster_state_bits[-1])
+    readouts = [cirq.Z(bit) for bit in cluster_state_bits[4:]]
 
     # Generate some training data.
     train_excitations, train_labels, test_excitations, test_labels = generate_data(
         cluster_state_bits)
 
-    # Build a sequential model.
-    # Here you are making the static cluster state prep as a part of the AddCircuit and the
-    # "quantum datapoints" are coming in the form of excitation
-
-    excitation_input = tf.keras.Input(shape=(), dtype=tf.dtypes.string)
+    excitation_input_dual = tf.keras.Input(shape=(), dtype=tf.dtypes.string)
 
     def build_layers():
-        cluster_state = tfq.layers.AddCircuit()(
-            excitation_input, prepend=cluster_state_circuit(cluster_state_bits))
-        quantum_model = tfq.layers.PQC(create_model_circuit(cluster_state_bits),
-                                   readout_operators)(cluster_state)
-        qcnn_model = tf.keras.Model(inputs=[excitation_input], outputs=[quantum_model])
-        return qcnn_model
+        cluster_state_dual = tfq.layers.AddCircuit()(
+            excitation_input_dual, prepend=cluster_state_circuit(cluster_state_bits))
+
+        quantum_model_dual = tfq.layers.PQC(
+            multi_readout_model_circuit(cluster_state_bits),
+            readouts)(cluster_state_dual)
+
+        if strategy:
+            # Having a strategy signifies this is a multi-worker training job.
+            # Add readout histogram layer for Tensorboard.
+            quantum_model_dual = ReadoutHistogramLayer()(quantum_model_dual)
+
+        d1_dual = tf.keras.layers.Dense(8)(quantum_model_dual)
+
+        d2_dual = tf.keras.layers.Dense(1)(d1_dual)
+
+        hybrid_model = tf.keras.Model(inputs=[excitation_input_dual], outputs=[d2_dual])
+        return hybrid_model
 
     if strategy:
         with strategy.scope():

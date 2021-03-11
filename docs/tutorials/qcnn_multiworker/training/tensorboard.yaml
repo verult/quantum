@@ -13,27 +13,46 @@
 # limitations under the License.
 # ==============================================================================
 
-kind: Job
-apiVersion: batch/v1
+apiVersion: v1
+kind: Service
 metadata:
-  name: inference-qcnn
+  name: tensorboard-service
 spec:
+  type: LoadBalancer
+  selector:
+    app: qcnn-tensorboard
+  ports:
+  - name: http
+    protocol: TCP
+    port: 5001
+    targetPort: 5001
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: qcnn-tensorboard
+  labels:
+    app: qcnn-tensorboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qcnn-tensorboard
   template:
     metadata:
       labels:
-        name: inference-qcnn
+        app: qcnn-tensorboard
     spec:
-      serviceAccountName: <service_account>
-      restartPolicy: Never
+      restartPolicy: Always
+      serviceAccount: <service_account>
       containers:
-      - name: tensorflow
+      - name: tensorboard
         image: <image_registry>
-        env:
-        - name: PYTHONUNBUFFERED
-          value: "TRUE"
+        ports:
+        - containerPort: 5001
         command:
-        - "python"
-        - "qcnn_inference.py"
+        - "tensorboard"
         args:
-        - "--weights-gcs-bucket=<bucket_name>"
-        - "--weights-gcs-path=qcnn_weights.h5"
+        - "--logdir=gs://<bucket_name>/<logdir_name>"
+        - "--port=5001"
+        - "--bind_all"
