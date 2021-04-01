@@ -6,7 +6,8 @@ The following variables are used in commands below:
 * `${CLUSTER_NAME}`: your Kubernetes cluster name on Google Kubernetes Engine.
 * `${PROJECT}`: your Google Cloud project ID.
 * `${NUM_NODES}`: the number of VMs in your cluster. I used 3 in my experiments, but less should work as well.
-* `${LOCATION}`: Google Cloud location for Google Cloud Storage bucket. This is recommended to be the same default location in your `gcloud` setup, as part of the Google Kubernetes Engine setup procedure.
+* `${MACHINE_TYPE}`: the [machine type](https://cloud.google.com/compute/docs/machine-types) of VMs. This controls the amount of CPU and memory resources for each VM.
+* `${BUCKET_REGION}`: Google Cloud region for Google Cloud Storage bucket. This is recommended to be the region containing your cluster’s zone. The region of a zone is the part of the zone name without the section after the last hyphen. For example, the region of zone "us-west1-a" is "us-west1".
 * `${BUCKET_NAME}`: Name of the Google Cloud Storage bucket for storing training output. The name must satisfy [Bucket naming requirements](https://cloud.google.com/storage/docs/naming-buckets#requirements). Example: `qcnn-multiworker-your-project-id`.
 
 ---
@@ -36,7 +37,7 @@ and look for your user account. A list of roles can be found [here](https://clou
   * This is for storing Docker images. Other non-Google container registries recognized by Docker works as well.
 * Google Kubernetes Engine (GKE) setup: follow the quick start guide and stop before “Creating a GKE Cluster”: https://cloud.google.com/kubernetes-engine/docs/quickstart#local-shell
 * Create a GKE cluster
-  * `gcloud container clusters create ${CLUSTER_NAME} --workload-pool=${PROJECT}.svc.id.goog --num-nodes=${NUM_NODES}`
+  * `gcloud container clusters create ${CLUSTER_NAME} --workload-pool=${PROJECT}.svc.id.goog --num-nodes=${NUM_NODES} --machine-type=${MACHINE_TYPE}`
 * Workload identity IAM commands:
   * This feature enables the binding between Kubernetes service accounts and Google Cloud service accounts.
   * `gcloud iam service-accounts create qcnn-sa`
@@ -45,7 +46,7 @@ and look for your user account. A list of roles can be found [here](https://clou
   * This is for storing training output.
   * Install gsutil: `gcloud components install gsutil`
     * This is pre-installed if you opted to use Cloud Shell.
-  * Create bucket: `gsutil mb -p ${PROJECT} -l ${LOCATION} -b on gs://${BUCKET_NAME}`
+  * Create bucket: `gsutil mb -p ${PROJECT} -l ${BUCKET_REGION} -b on gs://${BUCKET_NAME}`
 * Give service account Cloud Storage permissions: `gsutil iam ch serviceAccount:qcnn-sa@${PROJECT}.iam.gserviceaccount.com:roles/storage.admin gs://${BUCKET_NAME}`
 * Install `tf-operator` from Kubeflow: `kubectl apply -f https://raw.githubusercontent.com/kubeflow/tf-operator/v1.0.1-rc.1/deploy/v1/tf-operator.yaml`
 

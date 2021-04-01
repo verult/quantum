@@ -19,6 +19,8 @@ metadata:
   name: qcnn
   namespace: default
 spec:
+  runPolicy:
+    cleanPodPolicy: None
   tfReplicaSpecs:
     Worker:
       replicas: 2

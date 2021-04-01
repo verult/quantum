@@ -19,7 +19,7 @@
 #
 # Usage:
 #   setup.sh infra - Sets up the Google Cloud infrastructure for the tutorial.
-#   setup.sh fill  - Fills in templated parameters in tutorial files using
+#   setup.sh param - Fills in templated parameters in tutorial files using
 #                    values set in this script.
 
 ### BEGIN configuration
@@ -27,24 +27,26 @@
 CLUSTER_NAME="qcnn-multiworker"
 PROJECT="some-gcp-project"
 NUM_NODES=2
+MACHINE_TYPE=n1-standard-2  # 2 vCPUs, 7.50GB memory
 SERVICE_ACCOUNT_NAME="qcnn-sa"
 
 ZONE="us-west1-a"
-GCS_REGION="us-west1"
+BUCKET_REGION="us-west1"
 # Bucket name must be globally unique.
-BUCKET_NAME="some-gcp-project-qcnn-multinode"
+BUCKET_NAME="${PROJECT}-qcnn-multinode"
 LOGDIR_NAME="qcnn-logdir"
 IMAGE_REGISTRY="gcr.io\/${PROJECT}\/qcnn:latest"
 
 ### END configuration
 
 # Set up Google Cloud infrastructure
-infra () {
+infra_up () {
   gcloud config set project ${PROJECT}
 
   gcloud container clusters create ${CLUSTER_NAME}   \
     --workload-pool=${PROJECT}.svc.id.goog   \
     --num-nodes=${NUM_NODES}   \
+    --machine-type=${MACHINE_TYPE}   \
     --zone=${ZONE}
 
   gcloud iam service-accounts create ${SERVICE_ACCOUNT_NAME}
@@ -53,10 +55,11 @@ infra () {
     --member "serviceAccount:${PROJECT}.svc.id.goog[default/${SERVICE_ACCOUNT_NAME}]"   \
     ${SERVICE_ACCOUNT_NAME}@${PROJECT}.iam.gserviceaccount.com
 
-  gsutil mb -p ${PROJECT} -l ${GCS_REGION} -b on gs://${BUCKET_NAME}
+  gsutil mb -p ${PROJECT} -l ${BUCKET_REGION} -b on gs://${BUCKET_NAME}
   gsutil iam ch serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT}.iam.gserviceaccount.com:roles/storage.admin gs://${BUCKET_NAME}
 
-  kubectl apply -f https://raw.githubusercontent.com/kubeflow/tf-operator/v1.0.1-rc.1/deploy/v1/tf-operator.yaml
+  docker pull k8s.gcr.io/kustomize/kustomize:v3.10.0
+  docker run k8s.gcr.io/kustomize/kustomize:v3.10.0 build "github.com/kubeflow/tf-operator.git/manifests/overlays/standalone?ref=v1.1.0" | kubectl apply -f -
 }
 
 # Fill in templated parameters.
@@ -71,7 +74,7 @@ fill_parameters () {
 
 case $1 in
   "infra" )
-    infra;;
-  "fill" )
+    infra_up;;
+  "param" )
     fill_parameters;;
 esac
