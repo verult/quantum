@@ -34,6 +34,12 @@ apply-training: apply-common
 delete-training:
 	kubectl delete -f common/sa.yaml --ignore-not-found; kubectl delete -f training/qcnn.yaml
 
+apply-tensorboard: apply-common
+	kubectl apply -f training/tensorboard.yaml
+
+delete-inference:
+	kubectl delete -f common/sa.yaml --ignore-not-found; kubectl delete -f training/tensorboard.yaml
+
 apply-inference: apply-common
 	kubectl apply -f inference/inference.yaml
 

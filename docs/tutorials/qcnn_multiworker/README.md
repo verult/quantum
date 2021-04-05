@@ -72,14 +72,16 @@ and look for your user account. A list of roles can be found [here](https://clou
 * Check worker logs: `kubectl logs -f qcnn-worker-0`.
   * Ctrl-C to terminate the log stream.
   * Logs should show progress bars for training epochs, profiler start & end, and eventually writing model weights to a file at the end.
-* Access Tensorboard
+* Set up Tensorboard
+  * `make tensorboard`
   * Get the IP of the Tensorboard instance
     * `kubectl get svc tensorboard-service`
     * The IP is under `EXTERNAL-IP`.
     * If the IP is `<pending>`, the load balancer is still being provisioned. Watch the status by running `kubectl get svc tensorboard-service -w`. Eventually the IP should show up.
   * In a browser, go to `<ip>:5001` to access the Tensorboard UI.
+  * Due to the lack of support for multiple ports in tf-operator currently ([feature request](https://github.com/kubeflow/tf-operator/issues/1251)), in order to enable profiler sampling mode (for multi-worker profiling), worker Services need to be patched manually with the required profiler port. To do this, run `training/apply_profiler_ports.sh`.
 * Training data and log summary data (used by Tensorboard) can be viewed in the [Google Cloud Storage browser](https://console.cloud.google.com/storage/browser)
-  
+
 ## Run Inference
 
 * `make inference`
